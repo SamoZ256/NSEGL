@@ -94,7 +94,7 @@ void createEGLContext(EGLint api, EGLNativeDisplayType native_display, EGLNative
         EGL_RENDER_BUFFER,
         &render_buffer);
     if (!ok)
-        fprintf(stderr, "eglQueyContext(EGL_RENDER_BUFFER) failed\n");
+        fprintf(stderr, "eglQueryContext(EGL_RENDER_BUFFER) failed\n");
     if (render_buffer == EGL_SINGLE_BUFFER)
         printf("warn: EGL surface is single buffered\n");
 

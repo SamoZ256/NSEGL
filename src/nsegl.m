@@ -12,13 +12,6 @@ struct NSEGLContext;
 EGLint lastError = EGL_SUCCESS;
 struct NSEGLContext* currentContext = NULL;
 
-inline long logEGLError(const char* msg, EGLint errorCode) {
-    NSEGL_ERROR(msg);
-    lastError = errorCode;
-
-    return 0;
-}
-
 //Config
 #define MAX_CONFIG_ATTRIBUTES 256
 
@@ -27,14 +20,20 @@ struct NSEGLConfig {
     uint32_t attribCount;
 };
 
-#define CAST_TO_NSEGL_CONFIG(eglConfig) struct NSEGLConfig* nsegl_##eglConfig = (struct NSEGLConfig*)eglConfig;
+#define CAST_TO_NSEGL_CONFIG(eglConfig) \
+if (!eglConfig) \
+    NSEGL_EGL_ERROR_AND_RETURN("'" #eglConfig "' must be a valid pointer", EGL_BAD_CONFIG); \
+struct NSEGLConfig* nsegl_##eglConfig = (struct NSEGLConfig*)eglConfig;
 
 //Display
 struct NSEGLDisplay {
     struct NSEGLContext* context;
 };
 
-#define CAST_TO_NSEGL_DISPLAY(eglDisplay) struct NSEGLDisplay* nsegl_##eglDisplay = (struct NSEGLDisplay*)eglDisplay;
+#define CAST_TO_NSEGL_DISPLAY(eglDisplay) \
+if (!eglDisplay) \
+    NSEGL_EGL_ERROR_AND_RETURN("'" #eglDisplay "' must be a valid pointer", EGL_BAD_DISPLAY); \
+struct NSEGLDisplay* nsegl_##eglDisplay = (struct NSEGLDisplay*)eglDisplay;
 
 //Context
 struct NSEGLContext {
@@ -42,18 +41,24 @@ struct NSEGLContext {
     NSOpenGLContext* context;
 };
 
-#define CAST_TO_NSEGL_CONTEXT(eglContext) struct NSEGLContext* nsegl_##eglContext = (struct NSEGLContext*)eglContext;
+#define CAST_TO_NSEGL_CONTEXT(eglContext, errorIfInvalid) \
+if (errorIfInvalid && !eglContext) \
+    NSEGL_EGL_ERROR_AND_RETURN("'" #eglContext "' must be a valid pointer", EGL_BAD_CONTEXT); \
+struct NSEGLContext* nsegl_##eglContext = (struct NSEGLContext*)eglContext;
 
 //Surface
 struct NSEGLSurface {
     NSWindow* window;
 };
 
-#define CAST_TO_NSEGL_SURFACE(eglSurface) struct NSEGLSurface* nsegl_##eglSurface = (struct NSEGLSurface*)eglSurface;
+#define CAST_TO_NSEGL_SURFACE(eglSurface) \
+if (!eglSurface) \
+    NSEGL_EGL_ERROR_AND_RETURN("'" #eglSurface "' must be a valid pointer", EGL_BAD_SURFACE); \
+struct NSEGLSurface* nsegl_##eglSurface = (struct NSEGLSurface*)eglSurface;
 
 //Attributes
 #define BAD_ATTRIBUTE(msg) \
-logEGLError(msg, EGL_BAD_ATTRIBUTE); \
+NSEGL_EGL_ERROR(msg, EGL_BAD_ATTRIBUTE); \
 *outSkip = true; \
 return -1;
 
@@ -113,7 +118,7 @@ int getNSAttribFromEGL(EGLint attrib, EGLint value, bool skipColor, bool* outSki
 //------------------------ EGL_VERSION_1_0 ------------------------
 EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config) {
     if (config_size == 0)
-        logEGLError("'config_size' must not be 0", EGL_BAD_PARAMETER);
+        NSEGL_EGL_ERROR_AND_RETURN("'config_size' must not be 0", EGL_BAD_PARAMETER);
     
     //TODO: return more than 1 config
     struct NSEGLConfig* config = malloc(sizeof(struct NSEGLConfig));
@@ -153,34 +158,34 @@ EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attr
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglCopyBuffers(EGLDisplay dpy, EGLSurface surface, EGLNativePixmapType target) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list) {
     //Cast
-    CAST_TO_NSEGL_CONTEXT(share_context);
+    CAST_TO_NSEGL_CONTEXT(share_context, false);
     CAST_TO_NSEGL_CONFIG(config);
 
     struct NSEGLContext* context = malloc(sizeof(struct NSEGLContext));
 
     context->pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:nsegl_config->attributes];
     if (context->pixelFormat == nil)
-        return (void*)logEGLError("Failed to create NS OpenGL pixel format", EGL_NOT_INITIALIZED);
+        NSEGL_EGL_ERROR_AND_RETURN("Failed to create NS OpenGL pixel format", EGL_NOT_INITIALIZED);
 
     context->context = [[NSOpenGLContext alloc] initWithFormat:context->pixelFormat shareContext: (share_context ? nsegl_share_context->context : nil)];
 
     if (context->context == nil)
-        return (void*)logEGLError("Failed to create NS OpenGL context", EGL_NOT_INITIALIZED);
+        NSEGL_EGL_ERROR_AND_RETURN("Failed to create NS OpenGL context", EGL_NOT_INITIALIZED);
 
     return context;
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config, const EGLint *attrib_list) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglCreatePixmapSurface(EGLDisplay dpy, EGLConfig config, EGLNativePixmapType pixmap, const EGLint *attrib_list) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config, EGLNativeWindowType win, const EGLint *attrib_list) {
@@ -193,7 +198,7 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
 
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx) {
     //Cast
-    CAST_TO_NSEGL_CONTEXT(ctx);
+    CAST_TO_NSEGL_CONTEXT(ctx, true);
     
     //TODO: deallocate the framework
     //[framework release];
@@ -204,30 +209,30 @@ EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx) 
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroySurface(EGLDisplay dpy, EGLSurface surface) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglGetConfigAttrib(EGLDisplay dpy, EGLConfig config, EGLint attribute, EGLint *value) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglGetConfigs(EGLDisplay dpy, EGLConfig *configs, EGLint config_size, EGLint *num_config) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLDisplay EGLAPIENTRY eglGetCurrentDisplay(void) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglGetCurrentSurface(EGLint readdraw) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLDisplay EGLAPIENTRY eglGetDisplay(EGLNativeDisplayType display_id) {
     struct NSEGLDisplay* display = malloc(sizeof(struct NSEGLDisplay));
 
     if (display_id != 0)
-        return (void*)logEGLError("'display_id' must be 0", EGL_BAD_PARAMETER);
+        NSEGL_EGL_ERROR_AND_RETURN("'display_id' must be 0", EGL_BAD_PARAMETER);
 
     return display;
 }
@@ -252,7 +257,7 @@ EGLAPI __eglMustCastToProperFunctionPointerType EGLAPIENTRY eglGetProcAddress(co
 EGLAPI EGLBoolean EGLAPIENTRY eglInitialize(EGLDisplay dpy, EGLint *major, EGLint *minor) {
     framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengl"));
     if (framework == nil)
-        return logEGLError("Failed to create NS OpenGL framework", EGL_NOT_INITIALIZED);
+        NSEGL_EGL_ERROR_AND_RETURN("Failed to create NS OpenGL framework", EGL_NOT_INITIALIZED);
 
     //TODO: set this to something else?
     *major = 0;
@@ -265,10 +270,10 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
     //Cast
     CAST_TO_NSEGL_DISPLAY(dpy);
     CAST_TO_NSEGL_SURFACE(draw);
-    CAST_TO_NSEGL_CONTEXT(ctx);
+    CAST_TO_NSEGL_CONTEXT(ctx, true);
 
     if (draw != read)
-        return logEGLError("Cannot draw and read from different surfaces", EGL_NOT_INITIALIZED);
+        NSEGL_EGL_ERROR_AND_RETURN("Cannot draw and read from different surfaces", EGL_NOT_INITIALIZED);
 
     NSView* view = [nsegl_draw->window contentView];
 
@@ -285,15 +290,15 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext ctx, EGLint attribute, EGLint *value) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI const char *EGLAPIENTRY eglQueryString(EGLDisplay dpy, EGLint name) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglQuerySurface(EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint *value) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
@@ -311,28 +316,24 @@ EGLAPI EGLBoolean EGLAPIENTRY eglTerminate(EGLDisplay dpy) {
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglWaitGL(void) {
-    NSEGL_WARN_UNSUPPORTED;
-
-    return EGL_FALSE;
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglWaitNative(EGLint engine) {
-    NSEGL_WARN_UNSUPPORTED;
-
-    return EGL_FALSE;
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 //------------------------ EGL_VERSION_1_1 ------------------------
 EGLAPI EGLBoolean EGLAPIENTRY eglBindTexImage(EGLDisplay dpy, EGLSurface surface, EGLint buffer) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglReleaseTexImage(EGLDisplay dpy, EGLSurface surface, EGLint buffer) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglSurfaceAttrib(EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint value) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglSwapInterval(EGLDisplay dpy, EGLint interval) {
@@ -349,7 +350,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapInterval(EGLDisplay dpy, EGLint interval) {
 //------------------------ EGL_VERSION_1_2 ------------------------
 EGLAPI EGLBoolean EGLAPIENTRY eglBindAPI(EGLenum api) {
     if (api != EGL_OPENGL_API)
-        return logEGLError("API must be 'EGL_OPENGL_API'", EGL_BAD_PARAMETER);
+        NSEGL_EGL_ERROR_AND_RETURN("API must be 'EGL_OPENGL_API'", EGL_BAD_PARAMETER);
 
     return EGL_TRUE;
 }
@@ -359,15 +360,15 @@ EGLAPI EGLenum EGLAPIENTRY eglQueryAPI(void) {
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglCreatePbufferFromClientBuffer(EGLDisplay dpy, EGLenum buftype, EGLClientBuffer buffer, EGLConfig config, const EGLint *attrib_list) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglReleaseThread(void) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglWaitClient(void) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 //------------------------ EGL_VERSION_1_3 ------------------------
@@ -379,31 +380,31 @@ EGLAPI EGLContext EGLAPIENTRY eglGetCurrentContext(void) {
 
 //------------------------ EGL_VERSION_1_5 ------------------------
 EGLAPI EGLSync EGLAPIENTRY eglCreateSync(EGLDisplay dpy, EGLenum type, const EGLAttrib *attrib_list) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroySync(EGLDisplay dpy, EGLSync sync) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLint EGLAPIENTRY eglClientWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTime timeout) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglGetSyncAttrib(EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLAttrib *value) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLImage EGLAPIENTRY eglCreateImage(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLAttrib *attrib_list) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroyImage(EGLDisplay dpy, EGLImage image) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLDisplay EGLAPIENTRY eglGetPlatformDisplay(EGLenum platform, void *native_display, const EGLAttrib *attrib_list) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglCreatePlatformWindowSurface(EGLDisplay dpy, EGLConfig config, void *native_window, const EGLAttrib *attrib_list) {
@@ -411,9 +412,9 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreatePlatformWindowSurface(EGLDisplay dpy, EGL
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglCreatePlatformPixmapSurface(EGLDisplay dpy, EGLConfig config, void *native_pixmap, const EGLAttrib *attrib_list) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags) {
-
+    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
 }
