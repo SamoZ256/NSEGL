@@ -20,8 +20,7 @@ All the necessary EGL include files are inside the include directory.
    `cd build`
 5. Initialize CMake
    `cmake ..`
-5. Make
-   `make`
+5. `make`
 
 
 
