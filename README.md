@@ -26,7 +26,7 @@ All the necessary EGL include files are inside the include directory.
 
 ## Usage
 
-There are a few notable things. First, the argument `display_id` in function `eglGetDisplay` must be 0. Currently, it isn't used for anything, but that may change in the future. Second, the type of `EGLNativeWindowType` is `NSWindow*`. Pass the `NSWindow*` you created as aa parameter to the `eglCreateWindowSurface` function.
+There are a few notable things. First, the argument `display_id` in function `eglGetDisplay` must be 0. Currently, it isn't used for anything, but that may change in the future. Second, the type of `EGLNativeWindowType` is `NSWindow*`. Pass the `NSWindow*` you created as a parameter to the `eglCreateWindowSurface` function.
 
 
 
