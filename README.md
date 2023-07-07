@@ -1,23 +1,36 @@
 ## About The Project
 
-Here's a blank template to get started: To avoid retyping too much info. Do a search and replace with your text editor for the following: `github_username`, `repo_name`, `twitter_handle`, `linkedin_username`, `email_client`, `email`, `project_title`, `project_description`
+When EGL was released, it was meant to be a solution for all platforms for creating an OpenGL context. But other APIs, like GLX and NSOpenGL, already existed, and therefore EGL wasn;t available on all platforms. This project aims to provide EGL support for MacOS by translating EGL to NSOpenGL.
 
 
 
 ## Getting Started
 
-This is an example of how you may give instructions on setting up your project locally.
-To get a local copy up and running follow these simple example steps.
+All the necessary EGL include files are inside the include directory.
+
+### Installation
+
+1. Clone the repo
+   `sh git clone https://github.com/SamoZ256/NSEGL.git`
+2. Enter the directory
+   `cd NSEGL`
+3. Create a build directory
+   `mkdir build`
+4. Enter the build directory
+   `cd build`
+5. Initialize CMake
+   `cmake ..`
+5. Make
+   `make`
 
 
 
 ## Usage
 
-There are a few notable things. First, the argument `display_id` in function `eglGetDisplay` must be 0.
+There are a few notable things. First, the argument `display_id` in function `eglGetDisplay` must be 0. Currently, it isn't used for anything, but that may change in the future. Second, the type of `EGLNativeWindowType` is `NSWindow*`. Pass the `NSWindow*` you created as aa parameter to the `eglCreateWindowSurface` function.
 
 
 
-<!-- LICENSE -->
 ## License
 
 Distributed under the APACHE 2.0 License. See `LICENSE.txt` for more information.
