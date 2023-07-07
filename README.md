@@ -1,6 +1,6 @@
 ## About The Project
 
-When EGL was released, it was meant to be a solution for all platforms for creating an OpenGL context. But other APIs, like GLX and NSOpenGL, already existed, and therefore EGL wasn;t available on all platforms. This project aims to provide EGL support for MacOS by translating EGL to NSOpenGL.
+When EGL was released, it was meant to be a solution for all platforms for creating an OpenGL context. But other APIs, like GLX and NSOpenGL, already existed, and therefore the success of EGL was limited. This project aims to provide EGL support for MacOS by translating EGL to NSOpenGL.
 
 
 
