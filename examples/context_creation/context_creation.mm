@@ -2,7 +2,7 @@
 
 #include <EGL/egl.h>
 
-#import <OpenGL/gl3.h>
+#include <OpenGL/gl.h>
 
 const EGLint egl_config_attribs[] = {
     EGL_COLOR_BUFFER_TYPE,     EGL_RGB_BUFFER,
@@ -124,7 +124,6 @@ EGLSurface g_surface;
         printf("eglSwapBuffers failed: %d\n", eglGetError());
         exit(EXIT_FAILURE);
     }
-    NSLog(@"Swap");
 }
 
 @end

@@ -55,9 +55,8 @@ logEGLError(msg, EGL_BAD_ATTRIBUTE); \
 *outSkip = true; \
 return -1;
 
-int getNSAttribFromEGL(EGLint attrib, EGLint value, bool skipColor, bool* outSkip, bool* outColorSkipped, bool* outUseValue) {
+int getNSAttribFromEGL(EGLint attrib, EGLint value, bool skipColor, bool* outSkip, bool* outColorSkipped) {
     *outSkip = false;
-    *outUseValue = true;
 
     switch (attrib) {
     case EGL_ALPHA_SIZE:
@@ -97,6 +96,7 @@ int getNSAttribFromEGL(EGLint attrib, EGLint value, bool skipColor, bool* outSki
     case EGL_COLOR_BUFFER_TYPE:
     case EGL_BUFFER_SIZE:
     case EGL_RENDERABLE_TYPE:
+    case EGL_SURFACE_TYPE:
         *outSkip = true;
         return -1;
 
@@ -128,13 +128,11 @@ EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attr
             break;
         EGLint value = attrib_list[i++];
 
-        bool skip, useValue;
-        int nsAttrib = getNSAttribFromEGL(attrib, value, colorSkipped, &skip, &colorSkipped, &useValue);
+        bool skip;
+        int nsAttrib = getNSAttribFromEGL(attrib, value, colorSkipped, &skip, &colorSkipped);
         if (skip)
             continue;
-        ADD_ATTRIBUTE(nsAttrib);
-        if (useValue)
-            ADD_ATTRIBUTE(value);
+        SET_ATTRIBUTE(nsAttrib, value);
     }
 
     ADD_ATTRIBUTE(NSOpenGLPFAAccelerated);

@@ -4,6 +4,8 @@ set(CMAKE_BUILD_TYPE Release)
 
 project(NSEGL)
 
+add_compile_options(-Wno-deprecated-declarations)
+
 include_directories(include)
 
 find_library(COCOA_LIBRARY NAMES Cocoa)
