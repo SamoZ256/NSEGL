@@ -6,16 +6,18 @@
 #import <OpenGL/OpenGL.h>
 
 CFBundleRef framework = nil;
-EGLint lastError = EGL_SUCCESS;
 
-inline EGLBoolean logEGLError(const char* msg, EGLint errorCode) {
+struct NSEGLContext;
+
+EGLint lastError = EGL_SUCCESS;
+struct NSEGLContext* currentContext = NULL;
+
+inline long logEGLError(const char* msg, EGLint errorCode) {
     NSEGL_ERROR(msg);
     lastError = errorCode;
 
-    return EGL_FALSE;
+    return 0;
 }
-
-struct NSEGLContext;
 
 //Config
 #define MAX_CONFIG_ATTRIBUTES 256
@@ -163,12 +165,12 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
 
     context->pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:nsegl_config->attributes];
     if (context->pixelFormat == nil)
-        return logEGLError("Failed to create NS OpenGL pixel format", EGL_NOT_INITIALIZED);
+        return (void*)logEGLError("Failed to create NS OpenGL pixel format", EGL_NOT_INITIALIZED);
 
     context->context = [[NSOpenGLContext alloc] initWithFormat:context->pixelFormat shareContext: (share_context ? nsegl_share_context->context : nil)];
 
     if (context->context == nil)
-        return logEGLError("Failed to create NS OpenGL context", EGL_NOT_INITIALIZED);
+        return (void*)logEGLError("Failed to create NS OpenGL context", EGL_NOT_INITIALIZED);
 
     return context;
 }
@@ -192,8 +194,9 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface(EGLDisplay dpy, EGLConfig c
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroyContext(EGLDisplay dpy, EGLContext ctx) {
     //Cast
     CAST_TO_NSEGL_CONTEXT(ctx);
-
-    [framework release];
+    
+    //TODO: deallocate the framework
+    //[framework release];
     [nsegl_ctx->pixelFormat release];
     [nsegl_ctx->context release];
 
@@ -224,7 +227,7 @@ EGLAPI EGLDisplay EGLAPIENTRY eglGetDisplay(EGLNativeDisplayType display_id) {
     struct NSEGLDisplay* display = malloc(sizeof(struct NSEGLDisplay));
 
     if (display_id != 0)
-        return logEGLError("'display_id' must be 0", EGL_BAD_PARAMETER);
+        return (void*)logEGLError("'display_id' must be 0", EGL_BAD_PARAMETER);
 
     return display;
 }
@@ -237,7 +240,13 @@ EGLAPI EGLint EGLAPIENTRY eglGetError(void) {
 }
 
 EGLAPI __eglMustCastToProperFunctionPointerType EGLAPIENTRY eglGetProcAddress(const char *procname) {
+    CFStringRef symbolName = CFStringCreateWithCString(kCFAllocatorDefault, procname, kCFStringEncodingASCII);
 
+    __eglMustCastToProperFunctionPointerType symbol = CFBundleGetFunctionPointerForName(framework, symbolName);
+
+    CFRelease(symbolName);
+
+    return symbol;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglInitialize(EGLDisplay dpy, EGLint *major, EGLint *minor) {
@@ -270,6 +279,8 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
 
     nsegl_dpy->context = nsegl_ctx; //HACK: this needs to be done for the swap buffers
 
+    currentContext = nsegl_ctx;
+
     return EGL_TRUE;
 }
 
@@ -296,15 +307,19 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglTerminate(EGLDisplay dpy) {
-
+    return EGL_TRUE;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglWaitGL(void) {
+    NSEGL_WARN_UNSUPPORTED;
 
+    return EGL_FALSE;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglWaitNative(EGLint engine) {
+    NSEGL_WARN_UNSUPPORTED;
 
+    return EGL_FALSE;
 }
 
 //------------------------ EGL_VERSION_1_1 ------------------------
@@ -340,7 +355,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglBindAPI(EGLenum api) {
 }
 
 EGLAPI EGLenum EGLAPIENTRY eglQueryAPI(void) {
-
+    return EGL_OPENGL_API;
 }
 
 EGLAPI EGLSurface EGLAPIENTRY eglCreatePbufferFromClientBuffer(EGLDisplay dpy, EGLenum buftype, EGLClientBuffer buffer, EGLConfig config, const EGLint *attrib_list) {
@@ -358,5 +373,47 @@ EGLAPI EGLBoolean EGLAPIENTRY eglWaitClient(void) {
 //------------------------ EGL_VERSION_1_3 ------------------------
 
 //------------------------ EGL_VERSION_1_4 ------------------------
+EGLAPI EGLContext EGLAPIENTRY eglGetCurrentContext(void) {
+    return currentContext;
+}
 
 //------------------------ EGL_VERSION_1_5 ------------------------
+EGLAPI EGLSync EGLAPIENTRY eglCreateSync(EGLDisplay dpy, EGLenum type, const EGLAttrib *attrib_list) {
+
+}
+
+EGLAPI EGLBoolean EGLAPIENTRY eglDestroySync(EGLDisplay dpy, EGLSync sync) {
+
+}
+
+EGLAPI EGLint EGLAPIENTRY eglClientWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTime timeout) {
+
+}
+
+EGLAPI EGLBoolean EGLAPIENTRY eglGetSyncAttrib(EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLAttrib *value) {
+
+}
+
+EGLAPI EGLImage EGLAPIENTRY eglCreateImage(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLAttrib *attrib_list) {
+
+}
+
+EGLAPI EGLBoolean EGLAPIENTRY eglDestroyImage(EGLDisplay dpy, EGLImage image) {
+
+}
+
+EGLAPI EGLDisplay EGLAPIENTRY eglGetPlatformDisplay(EGLenum platform, void *native_display, const EGLAttrib *attrib_list) {
+
+}
+
+EGLAPI EGLSurface EGLAPIENTRY eglCreatePlatformWindowSurface(EGLDisplay dpy, EGLConfig config, void *native_window, const EGLAttrib *attrib_list) {
+    return eglCreateWindowSurface(dpy, config, native_window, (EGLint*)attrib_list);
+}
+
+EGLAPI EGLSurface EGLAPIENTRY eglCreatePlatformPixmapSurface(EGLDisplay dpy, EGLConfig config, void *native_pixmap, const EGLAttrib *attrib_list) {
+
+}
+
+EGLAPI EGLBoolean EGLAPIENTRY eglWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags) {
+
+}
