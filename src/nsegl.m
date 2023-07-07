@@ -17,12 +17,24 @@ inline EGLBoolean logEGLError(const char* msg, EGLint errorCode) {
 
 struct NSEGLContext;
 
+//Config
+#define MAX_CONFIG_ATTRIBUTES 256
+
+struct NSEGLConfig {
+    NSOpenGLPixelFormatAttribute attributes[MAX_CONFIG_ATTRIBUTES];
+    uint32_t attribCount;
+};
+
+#define CAST_TO_NSEGL_CONFIG(eglConfig) struct NSEGLConfig* nsegl_##eglConfig = (struct NSEGLConfig*)eglConfig;
+
+//Display
 struct NSEGLDisplay {
     struct NSEGLContext* context;
 };
 
 #define CAST_TO_NSEGL_DISPLAY(eglDisplay) struct NSEGLDisplay* nsegl_##eglDisplay = (struct NSEGLDisplay*)eglDisplay;
 
+//Context
 struct NSEGLContext {
     NSOpenGLPixelFormat* pixelFormat;
     NSOpenGLContext* context;
@@ -30,15 +42,114 @@ struct NSEGLContext {
 
 #define CAST_TO_NSEGL_CONTEXT(eglContext) struct NSEGLContext* nsegl_##eglContext = (struct NSEGLContext*)eglContext;
 
+//Surface
 struct NSEGLSurface {
     NSWindow* window;
 };
 
 #define CAST_TO_NSEGL_SURFACE(eglSurface) struct NSEGLSurface* nsegl_##eglSurface = (struct NSEGLSurface*)eglSurface;
 
+//Attributes
+#define BAD_ATTRIBUTE(msg) \
+logEGLError(msg, EGL_BAD_ATTRIBUTE); \
+*outSkip = true; \
+return -1;
+
+int getNSAttribFromEGL(EGLint attrib, EGLint value, bool skipColor, bool* outSkip, bool* outColorSkipped, bool* outUseValue) {
+    *outSkip = false;
+    *outUseValue = true;
+
+    switch (attrib) {
+    case EGL_ALPHA_SIZE:
+        return NSOpenGLPFAAlphaSize;
+    case EGL_DEPTH_SIZE:
+        return NSOpenGLPFADepthSize;
+    case EGL_STENCIL_SIZE:
+        return NSOpenGLPFAStencilSize;
+    case EGL_SAMPLE_BUFFERS:
+        return NSOpenGLPFASampleBuffers;
+    case EGL_SAMPLES:
+        return NSOpenGLPFASamples;
+
+    //Color
+    case EGL_RED_SIZE:
+    case EGL_GREEN_SIZE:
+    case EGL_BLUE_SIZE:
+        if (skipColor) {
+            *outSkip = true;
+            return -1;
+        } else {
+            *outColorSkipped = true;
+            return NSOpenGLPFAColorSize;
+        }
+
+    //Special
+    //case EGL_SURFACE_TYPE:
+    //    switch (value) {
+    //    case EGL_WINDOW_BIT:
+    //        *outUseValue = false;
+    //        return NSOpenGLPFAWindow;
+    //    default:
+    //        BAD_ATTRIBUTE("Unknown surface type");
+    //    }
+    
+    //Unsupported
+    case EGL_COLOR_BUFFER_TYPE:
+    case EGL_BUFFER_SIZE:
+    case EGL_RENDERABLE_TYPE:
+        *outSkip = true;
+        return -1;
+
+    //Skipped
+    default:
+        BAD_ATTRIBUTE("Unknown attribute");
+    }
+}
+
+#undef BAD_ATTRIBUTE
+
 //------------------------ EGL_VERSION_1_0 ------------------------
 EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config) {
+    if (config_size == 0)
+        logEGLError("'config_size' must not be 0", EGL_BAD_PARAMETER);
+    
+    //TODO: return more than 1 config
+    struct NSEGLConfig* config = malloc(sizeof(struct NSEGLConfig));
+    config->attribCount = 0;
 
+#define ADD_ATTRIBUTE(attrib) config->attributes[config->attribCount++] = attrib;
+#define SET_ATTRIBUTE(attrib, value) ADD_ATTRIBUTE(attrib); ADD_ATTRIBUTE(value);
+
+    uint32_t i = 0;
+    bool colorSkipped = false;
+    while (true) {
+        EGLint attrib = attrib_list[i++];
+        if (attrib == EGL_NONE)
+            break;
+        EGLint value = attrib_list[i++];
+
+        bool skip, useValue;
+        int nsAttrib = getNSAttribFromEGL(attrib, value, colorSkipped, &skip, &colorSkipped, &useValue);
+        if (skip)
+            continue;
+        ADD_ATTRIBUTE(nsAttrib);
+        if (useValue)
+            ADD_ATTRIBUTE(value);
+    }
+
+    ADD_ATTRIBUTE(NSOpenGLPFAAccelerated);
+    ADD_ATTRIBUTE(NSOpenGLPFAClosestPolicy);
+    ADD_ATTRIBUTE(NSOpenGLPFADoubleBuffer);
+
+    //TODO: set this accorsding to attributes
+    SET_ATTRIBUTE(NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion4_1Core);
+
+    ADD_ATTRIBUTE(0);
+
+    configs[0] = config;
+    *num_config = 1;
+
+    return EGL_TRUE;
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglCopyBuffers(EGLDisplay dpy, EGLSurface surface, EGLNativePixmapType target) {
@@ -48,31 +159,11 @@ EGLAPI EGLBoolean EGLAPIENTRY eglCopyBuffers(EGLDisplay dpy, EGLSurface surface,
 EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list) {
     //Cast
     CAST_TO_NSEGL_CONTEXT(share_context);
+    CAST_TO_NSEGL_CONFIG(config);
 
     struct NSEGLContext* context = malloc(sizeof(struct NSEGLContext));
 
-    NSOpenGLPixelFormatAttribute attributes[32];
-    uint16_t attribIndex = 0;
-
-#define ADD_ATTRIBUTE(attrib) attributes[attribIndex++] = attrib;
-#define SET_ATTRIBUTE(attrib1, attrib2) ADD_ATTRIBUTE(attrib1); ADD_ATTRIBUTE(attrib2);
-
-    ADD_ATTRIBUTE(NSOpenGLPFAAccelerated);
-    ADD_ATTRIBUTE(NSOpenGLPFAClosestPolicy);
-
-    //TODO: set these according to attributes
-    SET_ATTRIBUTE(NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion4_1Core);
-    SET_ATTRIBUTE(NSOpenGLPFAColorSize, 8);
-    SET_ATTRIBUTE(NSOpenGLPFAAlphaSize, 16);
-    SET_ATTRIBUTE(NSOpenGLPFADepthSize, 32);
-    SET_ATTRIBUTE(NSOpenGLPFAStencilSize, 8);
-    ADD_ATTRIBUTE(NSOpenGLPFADoubleBuffer);
-    SET_ATTRIBUTE(NSOpenGLPFASampleBuffers, 0);
-
-    //TODO: find out why should I do this
-    ADD_ATTRIBUTE(0);
-
-    context->pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:attributes];
+    context->pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:nsegl_config->attributes];
     if (context->pixelFormat == nil)
         return logEGLError("Failed to create NS OpenGL pixel format", EGL_NOT_INITIALIZED);
 

@@ -3,6 +3,6 @@
 
 #include <stdio.h>
 
-#define NSEGL_ERROR(msg) fprintf(stderr, "[NSEGL:error]::%s: " msg "\n", __FUNCTION__)
+#define NSEGL_ERROR(msg) fprintf(stderr, "[NSEGL:error]::%s: %s\n", __FUNCTION__, msg)
 
 #endif
