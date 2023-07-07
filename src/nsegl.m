@@ -134,6 +134,9 @@ EGLAPI EGLSurface EGLAPIENTRY eglGetCurrentSurface(EGLint readdraw) {
 EGLAPI EGLDisplay EGLAPIENTRY eglGetDisplay(EGLNativeDisplayType display_id) {
     struct NSEGLDisplay* display = malloc(sizeof(struct NSEGLDisplay));
 
+    if (display_id != 0)
+        return logEGLError("'display_id' must be 0", EGL_BAD_PARAMETER);
+
     return display;
 }
 
@@ -242,7 +245,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapInterval(EGLDisplay dpy, EGLint interval) {
 //------------------------ EGL_VERSION_1_2 ------------------------
 EGLAPI EGLBoolean EGLAPIENTRY eglBindAPI(EGLenum api) {
     if (api != EGL_OPENGL_API)
-        return logEGLError("API must be 'EGL_OPENGL_API'", EGL_NOT_INITIALIZED);
+        return logEGLError("API must be 'EGL_OPENGL_API'", EGL_BAD_PARAMETER);
 
     return EGL_TRUE;
 }
