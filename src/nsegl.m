@@ -5,6 +5,8 @@
 #import <Cocoa/Cocoa.h>
 #import <OpenGL/OpenGL.h>
 
+#define NSEGL_EGL_ENUM_MIN 0x3000
+
 CFBundleRef framework = nil;
 
 struct NSEGLContext;
@@ -21,8 +23,7 @@ struct objType* nsegl_##objName = (struct objType*)objName;
 #define MAX_CONFIG_ATTRIBUTES 256
 
 struct NSEGLConfig {
-    NSOpenGLPixelFormatAttribute attributes[MAX_CONFIG_ATTRIBUTES];
-    uint32_t attribCount;
+    int attributes[MAX_CONFIG_ATTRIBUTES];
 };
 
 #define CAST_TO_NSEGL_CONFIG(eglConfig) TEMPLATE_CAST_TO(NSEGLConfig, eglConfig, EGL_BAD_CONFIG, true)
@@ -38,6 +39,7 @@ struct NSEGLDisplay {
 struct NSEGLContext {
     NSOpenGLPixelFormat* pixelFormat;
     NSOpenGLContext* context;
+    struct NSEGLConfig* config;
 };
 
 #define CAST_TO_NSEGL_CONTEXT(eglContext, errorIfInvalid) TEMPLATE_CAST_TO(NSEGLContext, eglContext, EGL_BAD_CONTEXT, errorIfInvalid)
@@ -118,34 +120,28 @@ EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attr
     
     //TODO: return more than 1 config
     struct NSEGLConfig* config = malloc(sizeof(struct NSEGLConfig));
-    config->attribCount = 0;
+    for (uint32_t i = 0; i < MAX_CONFIG_ATTRIBUTES; i++)
+        config->attributes[i] = -2;
 
-#define ADD_ATTRIBUTE(attrib) config->attributes[config->attribCount++] = attrib;
-#define SET_ATTRIBUTE(attrib, value) ADD_ATTRIBUTE(attrib); ADD_ATTRIBUTE(value);
+#define ADD_ATTRIBUTE(attrib) config->attributes[attrib - NSEGL_EGL_ENUM_MIN] = -1;
+#define SET_ATTRIBUTE(attrib, value) config->attributes[attrib - NSEGL_EGL_ENUM_MIN] = value;
 
     uint32_t i = 0;
-    bool colorSkipped = false;
     while (true) {
         EGLint attrib = attrib_list[i++];
         if (attrib == EGL_NONE)
             break;
         EGLint value = attrib_list[i++];
 
-        bool skip;
-        int nsAttrib = getNSAttribFromEGL(attrib, value, colorSkipped, &skip, &colorSkipped);
-        if (skip)
-            continue;
-        SET_ATTRIBUTE(nsAttrib, value);
+        //bool skip;
+        //int nsAttrib = getNSAttribFromEGL(attrib, value, colorSkipped, &skip, &colorSkipped);
+        //if (skip)
+        //    continue;
+        SET_ATTRIBUTE(attrib, value);
     }
 
-    ADD_ATTRIBUTE(NSOpenGLPFAAccelerated);
-    ADD_ATTRIBUTE(NSOpenGLPFAClosestPolicy);
-    ADD_ATTRIBUTE(NSOpenGLPFADoubleBuffer);
-
-    //TODO: set this accorsding to attributes
-    SET_ATTRIBUTE(NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion4_1Core);
-
-    ADD_ATTRIBUTE(0);
+#undef SET_ATTRIBUTE
+#undef ADD_ATTRIBUTE
 
     configs[0] = config;
     *num_config = 1;
@@ -163,8 +159,40 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext(EGLDisplay dpy, EGLConfig config,
     CAST_TO_NSEGL_CONFIG(config);
 
     struct NSEGLContext* context = malloc(sizeof(struct NSEGLContext));
+    context->config = nsegl_config;
 
-    context->pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:nsegl_config->attributes];
+#define ADD_ATTRIBUTE(attrib) attributes[attribCount++] = attrib;
+#define SET_ATTRIBUTE(attrib, value) ADD_ATTRIBUTE(attrib); ADD_ATTRIBUTE(value);
+
+    NSOpenGLPixelFormatAttribute attributes[MAX_CONFIG_ATTRIBUTES * 2];
+    bool colorSkipped = false;
+    uint32_t attribCount = 0;
+    for (uint32_t attrib = 0; attrib < MAX_CONFIG_ATTRIBUTES; attrib++) {
+        int value = nsegl_config->attributes[attrib];
+        if (value != -2) {
+            bool skip;
+            int nsAttrib = getNSAttribFromEGL(attrib + NSEGL_EGL_ENUM_MIN, value, colorSkipped, &skip, &colorSkipped);
+            if (skip)
+                continue;
+            attributes[attribCount++] = nsAttrib;
+            if (value != -1)
+                attributes[attribCount++] = value;
+        }
+    }
+
+    ADD_ATTRIBUTE(NSOpenGLPFAAccelerated);
+    ADD_ATTRIBUTE(NSOpenGLPFAClosestPolicy);
+    ADD_ATTRIBUTE(NSOpenGLPFADoubleBuffer);
+
+    //TODO: set this accorsding to attributes
+    SET_ATTRIBUTE(NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion4_1Core);
+
+    ADD_ATTRIBUTE(0);
+
+#undef SET_ATTRIBUTE
+#undef ADD_ATTRIBUTE
+
+    context->pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:attributes];
     if (context->pixelFormat == nil)
         NSEGL_EGL_ERROR_AND_RETURN("Failed to create NS OpenGL pixel format", EGL_NOT_INITIALIZED);
 
@@ -286,7 +314,13 @@ EGLAPI EGLBoolean EGLAPIENTRY eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EG
 }
 
 EGLAPI EGLBoolean EGLAPIENTRY eglQueryContext(EGLDisplay dpy, EGLContext ctx, EGLint attribute, EGLint *value) {
-    NSEGL_WARN_UNSUPPORTED_AND_RETURN;
+    //Cast
+    CAST_TO_NSEGL_DISPLAY(dpy);
+    CAST_TO_NSEGL_CONTEXT(ctx, true);
+
+    *value = nsegl_ctx->config->attributes[attribute - NSEGL_EGL_ENUM_MIN];
+
+    return EGL_TRUE;
 }
 
 EGLAPI const char *EGLAPIENTRY eglQueryString(EGLDisplay dpy, EGLint name) {
