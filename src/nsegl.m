@@ -12,6 +12,11 @@ struct NSEGLContext;
 EGLint lastError = EGL_SUCCESS;
 struct NSEGLContext* currentContext = NULL;
 
+#define TEMPLATE_CAST_TO(objType, objName, errorCode, errorIfInvalid) \
+if (errorIfInvalid && !objName) \
+    NSEGL_EGL_ERROR_AND_RETURN("'" #objName "' must be a valid pointer", errorCode); \
+struct objType* nsegl_##objName = (struct objType*)objName;
+
 //Config
 #define MAX_CONFIG_ATTRIBUTES 256
 
@@ -20,20 +25,14 @@ struct NSEGLConfig {
     uint32_t attribCount;
 };
 
-#define CAST_TO_NSEGL_CONFIG(eglConfig) \
-if (!eglConfig) \
-    NSEGL_EGL_ERROR_AND_RETURN("'" #eglConfig "' must be a valid pointer", EGL_BAD_CONFIG); \
-struct NSEGLConfig* nsegl_##eglConfig = (struct NSEGLConfig*)eglConfig;
+#define CAST_TO_NSEGL_CONFIG(eglConfig) TEMPLATE_CAST_TO(NSEGLConfig, eglConfig, EGL_BAD_CONFIG, true)
 
 //Display
 struct NSEGLDisplay {
     struct NSEGLContext* context;
 };
 
-#define CAST_TO_NSEGL_DISPLAY(eglDisplay) \
-if (!eglDisplay) \
-    NSEGL_EGL_ERROR_AND_RETURN("'" #eglDisplay "' must be a valid pointer", EGL_BAD_DISPLAY); \
-struct NSEGLDisplay* nsegl_##eglDisplay = (struct NSEGLDisplay*)eglDisplay;
+#define CAST_TO_NSEGL_DISPLAY(eglDisplay) TEMPLATE_CAST_TO(NSEGLDisplay, eglDisplay, EGL_BAD_DISPLAY, true)
 
 //Context
 struct NSEGLContext {
@@ -41,20 +40,14 @@ struct NSEGLContext {
     NSOpenGLContext* context;
 };
 
-#define CAST_TO_NSEGL_CONTEXT(eglContext, errorIfInvalid) \
-if (errorIfInvalid && !eglContext) \
-    NSEGL_EGL_ERROR_AND_RETURN("'" #eglContext "' must be a valid pointer", EGL_BAD_CONTEXT); \
-struct NSEGLContext* nsegl_##eglContext = (struct NSEGLContext*)eglContext;
+#define CAST_TO_NSEGL_CONTEXT(eglContext, errorIfInvalid) TEMPLATE_CAST_TO(NSEGLContext, eglContext, EGL_BAD_CONTEXT, errorIfInvalid)
 
 //Surface
 struct NSEGLSurface {
     NSWindow* window;
 };
 
-#define CAST_TO_NSEGL_SURFACE(eglSurface) \
-if (!eglSurface) \
-    NSEGL_EGL_ERROR_AND_RETURN("'" #eglSurface "' must be a valid pointer", EGL_BAD_SURFACE); \
-struct NSEGLSurface* nsegl_##eglSurface = (struct NSEGLSurface*)eglSurface;
+#define CAST_TO_NSEGL_SURFACE(eglSurface) TEMPLATE_CAST_TO(NSEGLSurface, eglSurface, EGL_BAD_SURFACE, true)
 
 //Attributes
 #define BAD_ATTRIBUTE(msg) \
@@ -117,6 +110,9 @@ int getNSAttribFromEGL(EGLint attrib, EGLint value, bool skipColor, bool* outSki
 
 //------------------------ EGL_VERSION_1_0 ------------------------
 EGLAPI EGLBoolean EGLAPIENTRY eglChooseConfig(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config) {
+    //Cast
+    CAST_TO_NSEGL_DISPLAY(dpy);
+
     if (config_size == 0)
         NSEGL_EGL_ERROR_AND_RETURN("'config_size' must not be 0", EGL_BAD_PARAMETER);
     
